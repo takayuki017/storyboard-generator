@@ -31,6 +31,7 @@ export default function StoryboardDisplay({
         <ExportButton
           targetId="storyboard-export"
           filename={`storyboard-${safeFilename}`}
+          storyboard={storyboard}
         />
       </div>
 
