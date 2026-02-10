@@ -3,6 +3,18 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { StoryboardData } from "@/lib/types";
 
+/** Get real pixel dimensions of a base64 / data-URL image */
+const getImageDimensions = (
+  dataUrl: string
+): Promise<{ width: number; height: number }> =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: 1, height: 1 });
+    img.src = dataUrl;
+  });
+
 interface ExportButtonProps {
   targetId: string;
   filename: string;
@@ -102,13 +114,26 @@ export default function ExportButton({
         doc.setTextColor(100);
         doc.text(frame.timestamp, pageW - margin, 18, { align: "right" });
 
-        let imgWidth = 80;
-        let imgHeight = 80;
-        let textX = margin + imgWidth + 8;
+        const maxImgW = 90;
+        const maxImgH = pageH - 24 - margin - 4;
+        let imgWidth = maxImgW;
+        let imgHeight = maxImgH;
+        let textX = margin + maxImgW + 8;
 
         if (frame.imageUrl) {
           try {
+            const dims = await getImageDimensions(frame.imageUrl);
+            const ratio = dims.width / dims.height;
+            // Fit within max bounds while preserving aspect ratio
+            if (ratio >= maxImgW / maxImgH) {
+              imgWidth = maxImgW;
+              imgHeight = maxImgW / ratio;
+            } else {
+              imgHeight = maxImgH;
+              imgWidth = maxImgH * ratio;
+            }
             doc.addImage(frame.imageUrl, "PNG", margin, 24, imgWidth, imgHeight);
+            textX = margin + imgWidth + 8;
           } catch {
             textX = margin;
           }
@@ -183,16 +208,33 @@ export default function ExportButton({
           fontSize: 12, align: "right", color: "666666",
         });
 
+        const pptMaxW = 4.5;
+        const pptMaxH = 5.5;
+        let actualImgW = pptMaxW;
+        let textXOffset = 5.2;
+
         if (frame.imageUrl) {
           try {
-            slide.addImage({ data: frame.imageUrl, x: 0.4, y: 0.8, w: 4.5, h: 4.5 });
+            const dims = await getImageDimensions(frame.imageUrl);
+            const ratio = dims.width / dims.height;
+            let imgW = pptMaxW;
+            let imgH = pptMaxW / ratio;
+            if (imgH > pptMaxH) {
+              imgH = pptMaxH;
+              imgW = pptMaxH * ratio;
+            }
+            slide.addImage({ data: frame.imageUrl, x: 0.4, y: 0.8, w: imgW, h: imgH });
+            actualImgW = imgW;
+            textXOffset = 0.4 + actualImgW + 0.3;
           } catch {
-            // Skip
+            textXOffset = 0.4;
           }
+        } else {
+          textXOffset = 0.4;
         }
 
-        const textX = 5.2;
-        const textW = 7.8;
+        const textX = textXOffset;
+        const textW = 13.3 - textX - 0.3;
         let textY = 0.8;
 
         const addText = (label: string, content: string) => {
